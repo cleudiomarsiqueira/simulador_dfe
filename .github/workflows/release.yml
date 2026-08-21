@@ -79,10 +79,13 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         RELEASE_TAG: ${{ github.ref_name != 'main' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
       run: |
-        $releases = gh release list --limit 1000 --json databaseId,tagName | ConvertFrom-Json
+        $releases = gh release list --limit 1000 --json tagName | ConvertFrom-Json
         $releasesToDelete = $releases | Where-Object { $_.tagName -ne $env:RELEASE_TAG }
 
         foreach ($release in $releasesToDelete) {
           Write-Host "Removing release $($release.tagName)."
-          gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/releases/$($release.databaseId)"
+          gh release delete $release.tagName --yes --cleanup-tag
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to remove release $($release.tagName)."
+          }
         }
