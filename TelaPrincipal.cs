@@ -9,6 +9,7 @@ namespace SimuladorDFe;
 
 public partial class TelaPrincipal : Form
 {
+    private const string NamespaceDeclaracaoXmlns = "http://www.w3.org/2000/xmlns/";
     private static readonly TimeSpan TempoMaximoRequisicao = TimeSpan.FromSeconds(5);
 
     private enum ResultadoRequisicao
@@ -834,6 +835,7 @@ public partial class TelaPrincipal : Form
                 var larguraCampo = Math.Max(240, larguraDisponivel / 2);
                 foreach (XmlAttribute atributo in campo.Elemento.Attributes)
                 {
+                    var declaracaoNamespace = EhDeclaracaoDeNamespace(atributo);
                     var linha = new TableLayoutPanel
                     {
                         AutoSize = false,
@@ -849,15 +851,18 @@ public partial class TelaPrincipal : Form
                     {
                         AutoEllipsis = true,
                         Dock = DockStyle.Fill,
-                        Text = atributo.Name,
+                        Text = declaracaoNamespace ? $"{atributo.Name} (namespace)" : atributo.Name,
                         TextAlign = ContentAlignment.MiddleLeft
                     };
                     var entrada = new TextBox
                     {
+                        BackColor = declaracaoNamespace ? SystemColors.Control : SystemColors.Window,
                         Dock = DockStyle.Fill,
                         Tag = atributo,
                         Text = atributo.Value,
-                        Margin = new Padding(0, 1, 0, 1)
+                        Margin = new Padding(0, 1, 0, 1),
+                        ReadOnly = declaracaoNamespace,
+                        TabStop = !declaracaoNamespace
                     };
                     entrada.TextChanged += entradaAtributo_TextChanged;
                     linha.Controls.Add(rotulo, 0, 0);
@@ -893,9 +898,38 @@ public partial class TelaPrincipal : Form
         if (_atualizandoEditorCampo || sender is not TextBox { Tag: XmlAttribute atributo })
             return;
 
-        atributo.Value = ((TextBox)sender).Text;
-        AplicarAlteracaoAutomatica();
+        if (EhDeclaracaoDeNamespace(atributo))
+            return;
+
+        var entrada = (TextBox)sender;
+        var valorAnterior = atributo.Value;
+        atributo.Value = entrada.Text;
+
+        try
+        {
+            AplicarAlteracaoAutomatica();
+        }
+        catch (XmlException ex)
+        {
+            atributo.Value = valorAnterior;
+            _atualizandoEditorCampo = true;
+            try
+            {
+                entrada.Text = valorAnterior;
+            }
+            finally
+            {
+                _atualizandoEditorCampo = false;
+            }
+
+            ExibirErro($"A alteração do atributo foi desfeita porque deixaria o XML inválido: {ex.Message}");
+        }
     }
+
+    private static bool EhDeclaracaoDeNamespace(XmlAttribute atributo) =>
+        atributo.Name == "xmlns" ||
+        atributo.Prefix == "xmlns" ||
+        atributo.NamespaceURI == NamespaceDeclaracaoXmlns;
 
     private void AplicarAlteracaoAutomatica()
     {
