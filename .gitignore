@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+publicacao/
+
+# Scripts SQL locais de apoio/teste não fazem parte do simulador.
+*.sql
