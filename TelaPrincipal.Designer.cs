@@ -6,6 +6,7 @@ partial class TelaPrincipal
 {
     private System.ComponentModel.IContainer? components = null;
     private ToolStrip toolAcoes = null!;
+    private ToolStripButton btnConfigurar = null!;
     private ToolStripButton btnAbrirArquivo = null!;
     private ToolStripButton btnGerarPrevia = null!;
     private ToolStripButton btnEnviar = null!;
@@ -13,25 +14,6 @@ partial class TelaPrincipal
     private ToolStripButton btnConfirmarAck = null!;
     private ToolStripButton btnLimpar = null!;
     private TableLayoutPanel tabelaPrincipal = null!;
-    private TableLayoutPanel tabelaConfiguracao = null!;
-    private Label lblUrl = null!;
-    private TextBox txtUrl = null!;
-    private Label lblTipoDocumento = null!;
-    private ComboBox cmbTipoDocumento = null!;
-    private Label lblFluxoDocumento = null!;
-    private ComboBox cmbFluxoDocumento = null!;
-    private Label lblSequencia = null!;
-    private NumericUpDown nudSequencia = null!;
-    private Label lblPontoImpressao = null!;
-    private TextBox txtPontoImpressao = null!;
-    private Label lblToken = null!;
-    private TextBox txtToken = null!;
-    private CheckBox chkMostrarToken = null!;
-    private Label lblArquivo = null!;
-    private TextBox txtArquivo = null!;
-    private Label lblEndpoint = null!;
-    private TextBox txtEndpoint = null!;
-    private Label lblOrientacaoDocumento = null!;
     private SplitContainer splitConteudo = null!;
     private TabControl tabDocumento = null!;
     private TabPage tabEdicaoCampos = null!;
@@ -45,9 +27,8 @@ partial class TelaPrincipal
     private TextBox txtCaminhoCampo = null!;
     private Label lblValorCampo = null!;
     private TextBox txtValorCampo = null!;
-    private Label lblAtributosCampo = null!;
+    private GroupBox grupoAtributos = null!;
     private FlowLayoutPanel painelAtributos = null!;
-    private Button btnAplicarCampo = null!;
     private Label lblDocumento = null!;
     private RichTextBox txtDocumento = null!;
     private TabControl tabResultado = null!;
@@ -74,6 +55,7 @@ partial class TelaPrincipal
     private void InitializeComponent()
     {
         toolAcoes = new ToolStrip();
+        btnConfigurar = new ToolStripButton();
         btnAbrirArquivo = new ToolStripButton();
         btnGerarPrevia = new ToolStripButton();
         btnEnviar = new ToolStripButton();
@@ -81,25 +63,6 @@ partial class TelaPrincipal
         btnConfirmarAck = new ToolStripButton();
         btnLimpar = new ToolStripButton();
         tabelaPrincipal = new TableLayoutPanel();
-        tabelaConfiguracao = new TableLayoutPanel();
-        lblUrl = new Label();
-        lblTipoDocumento = new Label();
-        lblFluxoDocumento = new Label();
-        lblSequencia = new Label();
-        lblPontoImpressao = new Label();
-        txtUrl = new TextBox();
-        cmbTipoDocumento = new ComboBox();
-        cmbFluxoDocumento = new ComboBox();
-        nudSequencia = new NumericUpDown();
-        txtPontoImpressao = new TextBox();
-        lblToken = new Label();
-        lblArquivo = new Label();
-        txtToken = new TextBox();
-        chkMostrarToken = new CheckBox();
-        txtArquivo = new TextBox();
-        lblEndpoint = new Label();
-        txtEndpoint = new TextBox();
-        lblOrientacaoDocumento = new Label();
         splitConteudo = new SplitContainer();
         tabDocumento = new TabControl();
         tabEdicaoCampos = new TabPage();
@@ -108,9 +71,8 @@ partial class TelaPrincipal
         txtPesquisarTags = new TextBox();
         lblArvoreCampos = new Label();
         painelEdicaoCampo = new Panel();
-        btnAplicarCampo = new Button();
+        grupoAtributos = new GroupBox();
         painelAtributos = new FlowLayoutPanel();
-        lblAtributosCampo = new Label();
         txtValorCampo = new TextBox();
         lblValorCampo = new Label();
         txtCaminhoCampo = new TextBox();
@@ -132,8 +94,6 @@ partial class TelaPrincipal
         openFileDialog = new OpenFileDialog();
         toolAcoes.SuspendLayout();
         tabelaPrincipal.SuspendLayout();
-        tabelaConfiguracao.SuspendLayout();
-        ((System.ComponentModel.ISupportInitialize)nudSequencia).BeginInit();
         ((System.ComponentModel.ISupportInitialize)splitConteudo).BeginInit();
         splitConteudo.Panel1.SuspendLayout();
         splitConteudo.Panel2.SuspendLayout();
@@ -159,21 +119,33 @@ partial class TelaPrincipal
         toolAcoes.AutoSize = false;
         toolAcoes.GripStyle = ToolStripGripStyle.Hidden;
         toolAcoes.ImageScalingSize = new Size(20, 20);
-        toolAcoes.Items.AddRange(new ToolStripItem[] { btnAbrirArquivo, btnGerarPrevia, btnEnviar, btnColetarPendentes, btnConfirmarAck, btnLimpar });
+        toolAcoes.Items.AddRange(new ToolStripItem[] { btnConfigurar, btnAbrirArquivo, btnGerarPrevia, btnEnviar, btnColetarPendentes, btnConfirmarAck, btnLimpar });
         toolAcoes.Location = new Point(0, 0);
         toolAcoes.Name = "toolAcoes";
-        toolAcoes.Padding = new Padding(12, 4, 12, 4);
+        toolAcoes.Padding = new Padding(8, 4, 8, 4);
         toolAcoes.Size = new Size(1184, 42);
         toolAcoes.TabIndex = 0;
+        //
+        // btnConfigurar
+        //
+        btnConfigurar.AutoSize = false;
+        btnConfigurar.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        btnConfigurar.Font = new Font("Segoe UI", 8.5F);
+        btnConfigurar.Margin = new Padding(0, 0, 4, 0);
+        btnConfigurar.Name = "btnConfigurar";
+        btnConfigurar.Size = new Size(145, 32);
+        btnConfigurar.Text = "Configurar API (F3)";
+        btnConfigurar.ToolTipText = "Abrir a configuração da API (F3)";
+        btnConfigurar.Click += btnConfigurar_Click;
         //
         // btnAbrirArquivo
         //
         btnAbrirArquivo.AutoSize = false;
         btnAbrirArquivo.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        btnAbrirArquivo.Font = new Font("Segoe UI", 9F);
-        btnAbrirArquivo.Margin = new Padding(0, 0, 8, 0);
+        btnAbrirArquivo.Font = new Font("Segoe UI", 8.5F);
+        btnAbrirArquivo.Margin = new Padding(0, 0, 4, 0);
         btnAbrirArquivo.Name = "btnAbrirArquivo";
-        btnAbrirArquivo.Size = new Size(180, 32);
+        btnAbrirArquivo.Size = new Size(150, 32);
         btnAbrirArquivo.Text = "Abrir Documento (F2)";
         btnAbrirArquivo.ToolTipText = "Selecionar o XML ou JSON a ser enviado (F2 ou Ctrl+O)";
         btnAbrirArquivo.Click += btnAbrirArquivo_Click;
@@ -182,10 +154,10 @@ partial class TelaPrincipal
         //
         btnGerarPrevia.AutoSize = false;
         btnGerarPrevia.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        btnGerarPrevia.Font = new Font("Segoe UI", 9F);
-        btnGerarPrevia.Margin = new Padding(0, 0, 8, 0);
+        btnGerarPrevia.Font = new Font("Segoe UI", 8.5F);
+        btnGerarPrevia.Margin = new Padding(0, 0, 4, 0);
         btnGerarPrevia.Name = "btnGerarPrevia";
-        btnGerarPrevia.Size = new Size(180, 32);
+        btnGerarPrevia.Size = new Size(130, 32);
         btnGerarPrevia.Text = "Gerar Prévia (F5)";
         btnGerarPrevia.ToolTipText = "Validar e montar o payload sem chamar a API (F5)";
         btnGerarPrevia.Click += btnGerarPrevia_Click;
@@ -194,10 +166,10 @@ partial class TelaPrincipal
         //
         btnEnviar.AutoSize = false;
         btnEnviar.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        btnEnviar.Font = new Font("Segoe UI", 9F);
-        btnEnviar.Margin = new Padding(0, 0, 8, 0);
+        btnEnviar.Font = new Font("Segoe UI", 8.5F);
+        btnEnviar.Margin = new Padding(0, 0, 4, 0);
         btnEnviar.Name = "btnEnviar";
-        btnEnviar.Size = new Size(160, 32);
+        btnEnviar.Size = new Size(135, 32);
         btnEnviar.Text = "Enviar Retorno (F10)";
         btnEnviar.ToolTipText = "Enviar o payload para a rota calculada a partir da URL base (F10)";
         btnEnviar.Click += btnEnviar_Click;
@@ -206,10 +178,10 @@ partial class TelaPrincipal
         //
         btnColetarPendentes.AutoSize = false;
         btnColetarPendentes.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        btnColetarPendentes.Font = new Font("Segoe UI", 9F);
-        btnColetarPendentes.Margin = new Padding(0, 0, 8, 0);
+        btnColetarPendentes.Font = new Font("Segoe UI", 8.5F);
+        btnColetarPendentes.Margin = new Padding(0, 0, 4, 0);
         btnColetarPendentes.Name = "btnColetarPendentes";
-        btnColetarPendentes.Size = new Size(175, 32);
+        btnColetarPendentes.Size = new Size(150, 32);
         btnColetarPendentes.Text = "Coletar Pendentes (F4)";
         btnColetarPendentes.ToolTipText = "Buscar os documentos de emissão pendentes para coleta (F4)";
         btnColetarPendentes.Click += btnColetarPendentes_Click;
@@ -218,10 +190,10 @@ partial class TelaPrincipal
         //
         btnConfirmarAck.AutoSize = false;
         btnConfirmarAck.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        btnConfirmarAck.Font = new Font("Segoe UI", 9F);
-        btnConfirmarAck.Margin = new Padding(0, 0, 8, 0);
+        btnConfirmarAck.Font = new Font("Segoe UI", 8.5F);
+        btnConfirmarAck.Margin = new Padding(0, 0, 4, 0);
         btnConfirmarAck.Name = "btnConfirmarAck";
-        btnConfirmarAck.Size = new Size(160, 32);
+        btnConfirmarAck.Size = new Size(140, 32);
         btnConfirmarAck.Text = "Confirmar ACK (F8)";
         btnConfirmarAck.ToolTipText = "Confirmar a coleta para a sequência DFe informada (F8)";
         btnConfirmarAck.Click += btnConfirmarAck_Click;
@@ -230,9 +202,9 @@ partial class TelaPrincipal
         //
         btnLimpar.AutoSize = false;
         btnLimpar.DisplayStyle = ToolStripItemDisplayStyle.Text;
-        btnLimpar.Font = new Font("Segoe UI", 9F);
+        btnLimpar.Font = new Font("Segoe UI", 8.5F);
         btnLimpar.Name = "btnLimpar";
-        btnLimpar.Size = new Size(120, 32);
+        btnLimpar.Size = new Size(110, 32);
         btnLimpar.Text = "Limpar (F12)";
         btnLimpar.ToolTipText = "Limpar documento e resultados, mantendo URL e token (F12)";
         btnLimpar.Click += btnLimpar_Click;
@@ -241,252 +213,20 @@ partial class TelaPrincipal
         //
         tabelaPrincipal.ColumnCount = 1;
         tabelaPrincipal.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        tabelaPrincipal.Controls.Add(tabelaConfiguracao, 0, 0);
-        tabelaPrincipal.Controls.Add(splitConteudo, 0, 1);
+        tabelaPrincipal.Controls.Add(splitConteudo, 0, 0);
         tabelaPrincipal.Dock = DockStyle.Fill;
         tabelaPrincipal.Location = new Point(0, 42);
         tabelaPrincipal.Name = "tabelaPrincipal";
         tabelaPrincipal.Padding = new Padding(12, 8, 12, 8);
-        tabelaPrincipal.RowCount = 2;
-        tabelaPrincipal.RowStyles.Add(new RowStyle(SizeType.Absolute, 173F));
+        tabelaPrincipal.RowCount = 1;
         tabelaPrincipal.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         tabelaPrincipal.Size = new Size(1184, 720);
         tabelaPrincipal.TabIndex = 1;
         //
-        // tabelaConfiguracao
-        //
-        tabelaConfiguracao.ColumnCount = 5;
-        tabelaConfiguracao.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32F));
-        tabelaConfiguracao.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22F));
-        tabelaConfiguracao.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F));
-        tabelaConfiguracao.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11F));
-        tabelaConfiguracao.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-        tabelaConfiguracao.Controls.Add(lblUrl, 0, 0);
-        tabelaConfiguracao.Controls.Add(lblTipoDocumento, 1, 0);
-        tabelaConfiguracao.Controls.Add(lblFluxoDocumento, 2, 0);
-        tabelaConfiguracao.Controls.Add(lblSequencia, 3, 0);
-        tabelaConfiguracao.Controls.Add(lblPontoImpressao, 4, 0);
-        tabelaConfiguracao.Controls.Add(txtUrl, 0, 1);
-        tabelaConfiguracao.Controls.Add(cmbTipoDocumento, 1, 1);
-        tabelaConfiguracao.Controls.Add(cmbFluxoDocumento, 2, 1);
-        tabelaConfiguracao.Controls.Add(nudSequencia, 3, 1);
-        tabelaConfiguracao.Controls.Add(txtPontoImpressao, 4, 1);
-        tabelaConfiguracao.Controls.Add(lblToken, 0, 2);
-        tabelaConfiguracao.Controls.Add(lblArquivo, 2, 2);
-        tabelaConfiguracao.Controls.Add(txtToken, 0, 3);
-        tabelaConfiguracao.Controls.Add(chkMostrarToken, 1, 3);
-        tabelaConfiguracao.Controls.Add(txtArquivo, 2, 3);
-        tabelaConfiguracao.Controls.Add(lblEndpoint, 0, 4);
-        tabelaConfiguracao.Controls.Add(txtEndpoint, 0, 5);
-        tabelaConfiguracao.Controls.Add(lblOrientacaoDocumento, 0, 6);
-        tabelaConfiguracao.Dock = DockStyle.Fill;
-        tabelaConfiguracao.Location = new Point(15, 11);
-        tabelaConfiguracao.Name = "tabelaConfiguracao";
-        tabelaConfiguracao.RowCount = 7;
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 19F));
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 29F));
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 19F));
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 29F));
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 19F));
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 29F));
-        tabelaConfiguracao.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
-        tabelaConfiguracao.Size = new Size(1154, 167);
-        tabelaConfiguracao.TabIndex = 0;
-        //
-        // lblUrl
-        //
-        lblUrl.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblUrl.AutoSize = true;
-        lblUrl.Font = new Font("Segoe UI", 9F);
-        lblUrl.Location = new Point(3, 4);
-        lblUrl.Name = "lblUrl";
-        lblUrl.Size = new Size(92, 15);
-        lblUrl.TabIndex = 0;
-        lblUrl.Text = "URL Base da API";
-        //
-        // lblTipoDocumento
-        //
-        lblTipoDocumento.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblTipoDocumento.AutoSize = true;
-        lblTipoDocumento.Location = new Point(372, 4);
-        lblTipoDocumento.Name = "lblTipoDocumento";
-        lblTipoDocumento.Size = new Size(113, 15);
-        lblTipoDocumento.TabIndex = 2;
-        lblTipoDocumento.Text = "Tipo de Documento";
-        //
-        // lblFluxoDocumento
-        //
-        lblFluxoDocumento.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblFluxoDocumento.AutoSize = true;
-        lblFluxoDocumento.Location = new Point(625, 4);
-        lblFluxoDocumento.Name = "lblFluxoDocumento";
-        lblFluxoDocumento.Size = new Size(35, 15);
-        lblFluxoDocumento.TabIndex = 4;
-        lblFluxoDocumento.Text = "Fluxo";
-        //
-        // lblSequencia
-        //
-        lblSequencia.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblSequencia.AutoSize = true;
-        lblSequencia.Location = new Point(798, 4);
-        lblSequencia.Name = "lblSequencia";
-        lblSequencia.Size = new Size(84, 15);
-        lblSequencia.TabIndex = 6;
-        lblSequencia.Text = "Sequência DFe";
-        //
-        // lblPontoImpressao
-        //
-        lblPontoImpressao.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblPontoImpressao.AutoSize = true;
-        lblPontoImpressao.Location = new Point(924, 4);
-        lblPontoImpressao.Name = "lblPontoImpressao";
-        lblPontoImpressao.Size = new Size(112, 15);
-        lblPontoImpressao.TabIndex = 8;
-        lblPontoImpressao.Text = "Ponto de Impressão";
-        //
-        // txtUrl
-        //
-        txtUrl.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        txtUrl.Location = new Point(3, 22);
-        txtUrl.Name = "txtUrl";
-        txtUrl.PlaceholderText = "https://servidor/IntegracaoDFeApi";
-        txtUrl.Size = new Size(363, 23);
-        txtUrl.TabIndex = 1;
-        txtUrl.TextChanged += txtUrl_TextChanged;
-        //
-        // cmbTipoDocumento
-        //
-        cmbTipoDocumento.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        cmbTipoDocumento.DropDownStyle = ComboBoxStyle.DropDownList;
-        cmbTipoDocumento.FormattingEnabled = true;
-        cmbTipoDocumento.Items.AddRange(new object[] { "NF-e (XML nfeProc)", "CT-e (XML cteProc ou cteSimpProc)", "NFS-e (JSON)", "MDF-e (XML mdfeProc de retorno)" });
-        cmbTipoDocumento.Location = new Point(372, 22);
-        cmbTipoDocumento.Name = "cmbTipoDocumento";
-        cmbTipoDocumento.Size = new Size(247, 23);
-        cmbTipoDocumento.TabIndex = 3;
-        cmbTipoDocumento.SelectedIndexChanged += cmbTipoDocumento_SelectedIndexChanged;
-        //
-        // cmbFluxoDocumento
-        //
-        cmbFluxoDocumento.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        cmbFluxoDocumento.DropDownStyle = ComboBoxStyle.DropDownList;
-        cmbFluxoDocumento.FormattingEnabled = true;
-        cmbFluxoDocumento.Items.AddRange(new object[] { "Emissão", "Recepção" });
-        cmbFluxoDocumento.Location = new Point(625, 22);
-        cmbFluxoDocumento.Name = "cmbFluxoDocumento";
-        cmbFluxoDocumento.Size = new Size(167, 23);
-        cmbFluxoDocumento.TabIndex = 5;
-        cmbFluxoDocumento.SelectedIndexChanged += cmbFluxoDocumento_SelectedIndexChanged;
-        //
-        // nudSequencia
-        //
-        nudSequencia.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        nudSequencia.Location = new Point(798, 22);
-        nudSequencia.Maximum = new decimal(new int[] { int.MaxValue, 0, 0, 0 });
-        nudSequencia.Name = "nudSequencia";
-        nudSequencia.Size = new Size(120, 23);
-        nudSequencia.TabIndex = 7;
-        //
-        // txtPontoImpressao
-        //
-        txtPontoImpressao.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        txtPontoImpressao.Location = new Point(924, 22);
-        txtPontoImpressao.Name = "txtPontoImpressao";
-        txtPontoImpressao.Size = new Size(227, 23);
-        txtPontoImpressao.TabIndex = 9;
-        //
-        // lblToken
-        //
-        lblToken.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblToken.AutoSize = true;
-        tabelaConfiguracao.SetColumnSpan(lblToken, 2);
-        lblToken.Font = new Font("Segoe UI", 9F);
-        lblToken.Location = new Point(3, 52);
-        lblToken.Name = "lblToken";
-        lblToken.Size = new Size(98, 15);
-        lblToken.TabIndex = 10;
-        lblToken.Text = "Token (Opcional)";
-        //
-        // lblArquivo
-        //
-        lblArquivo.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblArquivo.AutoSize = true;
-        tabelaConfiguracao.SetColumnSpan(lblArquivo, 3);
-        lblArquivo.Location = new Point(625, 52);
-        lblArquivo.Name = "lblArquivo";
-        lblArquivo.Size = new Size(116, 15);
-        lblArquivo.TabIndex = 13;
-        lblArquivo.Text = "Arquivo Selecionado";
-        //
-        // txtToken
-        //
-        txtToken.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        txtToken.Location = new Point(3, 70);
-        txtToken.Name = "txtToken";
-        txtToken.Size = new Size(363, 23);
-        txtToken.TabIndex = 11;
-        txtToken.UseSystemPasswordChar = true;
-        //
-        // chkMostrarToken
-        //
-        chkMostrarToken.Anchor = AnchorStyles.Left;
-        chkMostrarToken.AutoSize = true;
-        chkMostrarToken.Location = new Point(372, 72);
-        chkMostrarToken.Name = "chkMostrarToken";
-        chkMostrarToken.Size = new Size(102, 19);
-        chkMostrarToken.TabIndex = 12;
-        chkMostrarToken.Text = "Mostrar Token";
-        chkMostrarToken.UseVisualStyleBackColor = true;
-        chkMostrarToken.CheckedChanged += chkMostrarToken_CheckedChanged;
-        //
-        // txtArquivo
-        //
-        txtArquivo.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        tabelaConfiguracao.SetColumnSpan(txtArquivo, 3);
-        txtArquivo.Location = new Point(625, 70);
-        txtArquivo.Name = "txtArquivo";
-        txtArquivo.ReadOnly = true;
-        txtArquivo.Size = new Size(526, 23);
-        txtArquivo.TabIndex = 14;
-        //
-        // lblEndpoint
-        //
-        lblEndpoint.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        lblEndpoint.AutoSize = true;
-        tabelaConfiguracao.SetColumnSpan(lblEndpoint, 5);
-        lblEndpoint.Font = new Font("Segoe UI", 9F);
-        lblEndpoint.Location = new Point(3, 100);
-        lblEndpoint.Name = "lblEndpoint";
-        lblEndpoint.Size = new Size(86, 15);
-        lblEndpoint.TabIndex = 15;
-        lblEndpoint.Text = "Rota Calculada";
-        //
-        // txtEndpoint
-        //
-        txtEndpoint.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        txtEndpoint.BackColor = SystemColors.Control;
-        tabelaConfiguracao.SetColumnSpan(txtEndpoint, 5);
-        txtEndpoint.Location = new Point(3, 118);
-        txtEndpoint.Name = "txtEndpoint";
-        txtEndpoint.ReadOnly = true;
-        txtEndpoint.Size = new Size(1148, 23);
-        txtEndpoint.TabIndex = 16;
-        //
-        // lblOrientacaoDocumento
-        //
-        lblOrientacaoDocumento.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        lblOrientacaoDocumento.AutoEllipsis = true;
-        tabelaConfiguracao.SetColumnSpan(lblOrientacaoDocumento, 5);
-        lblOrientacaoDocumento.ForeColor = Color.DimGray;
-        lblOrientacaoDocumento.Location = new Point(3, 144);
-        lblOrientacaoDocumento.Name = "lblOrientacaoDocumento";
-        lblOrientacaoDocumento.Size = new Size(1148, 23);
-        lblOrientacaoDocumento.TabIndex = 17;
-        //
         // splitConteudo
         //
         splitConteudo.Dock = DockStyle.Fill;
-        splitConteudo.Location = new Point(15, 184);
+        splitConteudo.Location = new Point(15, 11);
         splitConteudo.Name = "splitConteudo";
         splitConteudo.Orientation = Orientation.Horizontal;
         //
@@ -526,6 +266,7 @@ partial class TelaPrincipal
         // splitCampos
         //
         splitCampos.Dock = DockStyle.Fill;
+        splitCampos.FixedPanel = FixedPanel.Panel2;
         splitCampos.Location = new Point(3, 3);
         splitCampos.Name = "splitCampos";
         splitCampos.Orientation = Orientation.Horizontal;
@@ -540,9 +281,9 @@ partial class TelaPrincipal
         // splitCampos.Panel2
         //
         splitCampos.Panel2.Controls.Add(painelEdicaoCampo);
-        splitCampos.Panel2MinSize = 220;
+        splitCampos.Panel2MinSize = 185;
         splitCampos.Size = new Size(1140, 388);
-        splitCampos.SplitterDistance = 164;
+        splitCampos.SplitterDistance = 195;
         splitCampos.TabIndex = 0;
         //
         // arvoreCampos
@@ -552,7 +293,7 @@ partial class TelaPrincipal
         arvoreCampos.HideSelection = false;
         arvoreCampos.Location = new Point(0, 47);
         arvoreCampos.Name = "arvoreCampos";
-        arvoreCampos.Size = new Size(1140, 117);
+        arvoreCampos.Size = new Size(1140, 148);
         arvoreCampos.TabIndex = 2;
         arvoreCampos.AfterSelect += arvoreCampos_AfterSelect;
         arvoreCampos.DragDrop += txtDocumento_DragDrop;
@@ -582,9 +323,7 @@ partial class TelaPrincipal
         // painelEdicaoCampo
         //
         painelEdicaoCampo.AllowDrop = true;
-        painelEdicaoCampo.Controls.Add(btnAplicarCampo);
-        painelEdicaoCampo.Controls.Add(painelAtributos);
-        painelEdicaoCampo.Controls.Add(lblAtributosCampo);
+        painelEdicaoCampo.Controls.Add(grupoAtributos);
         painelEdicaoCampo.Controls.Add(txtValorCampo);
         painelEdicaoCampo.Controls.Add(lblValorCampo);
         painelEdicaoCampo.Controls.Add(txtCaminhoCampo);
@@ -592,41 +331,32 @@ partial class TelaPrincipal
         painelEdicaoCampo.Dock = DockStyle.Fill;
         painelEdicaoCampo.Location = new Point(0, 0);
         painelEdicaoCampo.Name = "painelEdicaoCampo";
-        painelEdicaoCampo.Size = new Size(1140, 220);
+        painelEdicaoCampo.Size = new Size(1140, 189);
         painelEdicaoCampo.TabIndex = 0;
         painelEdicaoCampo.DragDrop += txtDocumento_DragDrop;
         painelEdicaoCampo.DragEnter += txtDocumento_DragEnter;
+        // grupoAtributos
         //
-        // btnAplicarCampo
-        //
-        btnAplicarCampo.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        btnAplicarCampo.Location = new Point(1019, 189);
-        btnAplicarCampo.Name = "btnAplicarCampo";
-        btnAplicarCampo.Size = new Size(117, 27);
-        btnAplicarCampo.TabIndex = 6;
-        btnAplicarCampo.Text = "Aplicar Alteração";
-        btnAplicarCampo.UseVisualStyleBackColor = true;
-        btnAplicarCampo.Click += btnAplicarCampo_Click;
+        grupoAtributos.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        grupoAtributos.Controls.Add(painelAtributos);
+        grupoAtributos.Location = new Point(4, 96);
+        grupoAtributos.Name = "grupoAtributos";
+        grupoAtributos.Padding = new Padding(8, 4, 8, 6);
+        grupoAtributos.Size = new Size(1132, 79);
+        grupoAtributos.TabIndex = 4;
+        grupoAtributos.TabStop = false;
+        grupoAtributos.Text = "Atributos";
         //
         // painelAtributos
         //
-        painelAtributos.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         painelAtributos.AutoScroll = true;
-        painelAtributos.FlowDirection = FlowDirection.TopDown;
-        painelAtributos.Location = new Point(4, 114);
+        painelAtributos.Dock = DockStyle.Fill;
+        painelAtributos.FlowDirection = FlowDirection.LeftToRight;
+        painelAtributos.Location = new Point(8, 4);
         painelAtributos.Name = "painelAtributos";
-        painelAtributos.Size = new Size(1132, 69);
-        painelAtributos.TabIndex = 5;
-        painelAtributos.WrapContents = false;
-        //
-        // lblAtributosCampo
-        //
-        lblAtributosCampo.AutoSize = true;
-        lblAtributosCampo.Location = new Point(4, 96);
-        lblAtributosCampo.Name = "lblAtributosCampo";
-        lblAtributosCampo.Size = new Size(56, 15);
-        lblAtributosCampo.TabIndex = 4;
-        lblAtributosCampo.Text = "Atributos";
+        painelAtributos.Size = new Size(1116, 69);
+        painelAtributos.TabIndex = 0;
+        painelAtributos.WrapContents = true;
         //
         // txtValorCampo
         //
@@ -635,6 +365,7 @@ partial class TelaPrincipal
         txtValorCampo.Name = "txtValorCampo";
         txtValorCampo.Size = new Size(1132, 23);
         txtValorCampo.TabIndex = 3;
+        txtValorCampo.TextChanged += txtValorCampo_TextChanged;
         //
         // lblValorCampo
         //
@@ -848,9 +579,6 @@ partial class TelaPrincipal
         toolAcoes.ResumeLayout(false);
         toolAcoes.PerformLayout();
         tabelaPrincipal.ResumeLayout(false);
-        tabelaConfiguracao.ResumeLayout(false);
-        tabelaConfiguracao.PerformLayout();
-        ((System.ComponentModel.ISupportInitialize)nudSequencia).EndInit();
         splitConteudo.Panel1.ResumeLayout(false);
         splitConteudo.Panel2.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)splitConteudo).EndInit();

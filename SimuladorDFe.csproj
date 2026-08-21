@@ -28,6 +28,12 @@
     <Compile Update="TelaPrincipal.Designer.cs">
       <DependentUpon>TelaPrincipal.cs</DependentUpon>
     </Compile>
+    <Compile Update="FormularioConfiguracao.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormularioConfiguracao.Designer.cs">
+      <DependentUpon>FormularioConfiguracao.cs</DependentUpon>
+    </Compile>
     <EmbeddedResource Update="TelaPrincipal.resx">
       <DependentUpon>TelaPrincipal.cs</DependentUpon>
     </EmbeddedResource>

@@ -12,19 +12,27 @@ public partial class TelaPrincipal : Form
     private readonly PreparadorPayloadDfe _preparador = new();
     private readonly HttpClient _httpClient = new();
     private readonly ClienteIntegracaoDfe _cliente;
+    private ConfiguracaoDfe _configuracao = ConfiguracaoDfe.Padrao;
     private PayloadPreparado? _payloadPreparado;
     private XmlDocument? _documentoXml;
     private CampoXmlSelecionado? _campoSelecionado;
     private bool _atualizandoDocumento;
+    private bool _atualizandoEditorCampo;
+    // Mantém o estado em memória para um futuro indicador visual de documento alterado.
+    // A referência é definida depois de o arquivo ser normalizado pela aplicação.
+    private string? _conteudoOriginalDocumento;
+    private bool _documentoAlterado;
+    private bool _configuracaoConcluida;
+    private bool _operacaoEmAndamento;
 
     public TelaPrincipal()
     {
         InitializeComponent();
         _cliente = new ClienteIntegracaoDfe(_httpClient);
-        cmbFluxoDocumento.SelectedIndex = (int)FluxoDocumento.Recepcao;
-        cmbTipoDocumento.SelectedIndex = 0;
-        AtualizarOrientacaoDocumento();
-        AtualizarStatus("Informe a URL da publicação, selecione um documento e informe o token se necessário.");
+        AtualizarContextoDocumento();
+        AtualizarDisponibilidadeControles();
+        Shown += (_, _) => AbrirConfiguracao();
+        AtualizarStatus("Configure a URL da API para liberar as demais funções.");
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -33,35 +41,8 @@ public partial class TelaPrincipal : Form
         base.OnFormClosed(e);
     }
 
-    private TipoDocumento TipoSelecionado => (TipoDocumento)cmbTipoDocumento.SelectedIndex;
-    private FluxoDocumento FluxoSelecionado => (FluxoDocumento)cmbFluxoDocumento.SelectedIndex;
-
-    private static string ObterCaminhoEndpoint(TipoDocumento tipoDocumento, FluxoDocumento fluxoDocumento) => (tipoDocumento, fluxoDocumento) switch
-    {
-        (TipoDocumento.NFe, FluxoDocumento.Emissao) => "/api/v1/nfe/emissao/documentos/retorno",
-        (TipoDocumento.NFe, FluxoDocumento.Recepcao) => "/api/v1/nfe/recepcao/documentos/retorno",
-        (TipoDocumento.CTe, FluxoDocumento.Emissao) => "/api/v1/cte/emissao/documentos/retorno",
-        (TipoDocumento.CTe, FluxoDocumento.Recepcao) => "/api/v1/cte/recepcao/documentos/retorno",
-        (TipoDocumento.NFSe, FluxoDocumento.Emissao) => "/api/v1/nfse/emissao/documentos/retorno",
-        (TipoDocumento.NFSe, FluxoDocumento.Recepcao) => "/api/v1/nfse/recepcao/documentos/retorno",
-        (TipoDocumento.MDFe, FluxoDocumento.Emissao) => "/api/v1/mdfe/emissao/documentos/retorno",
-        _ => throw new ArgumentOutOfRangeException(nameof(fluxoDocumento))
-    };
-
-    private static string ObterCaminhoBaseEmissao(TipoDocumento tipoDocumento) => tipoDocumento switch
-    {
-        TipoDocumento.NFe => "/api/v1/nfe/emissao/documentos",
-        TipoDocumento.CTe => "/api/v1/cte/emissao/documentos",
-        TipoDocumento.NFSe => "/api/v1/nfse/emissao/documentos",
-        TipoDocumento.MDFe => "/api/v1/mdfe/emissao/documentos",
-        _ => throw new ArgumentOutOfRangeException(nameof(tipoDocumento))
-    };
-
-    private static string ObterCaminhoColeta(TipoDocumento tipoDocumento) =>
-        $"{ObterCaminhoBaseEmissao(tipoDocumento)}/pendentes";
-
-    private static string ObterCaminhoAcknowledgement(TipoDocumento tipoDocumento, int sequenciaDfe) =>
-        $"{ObterCaminhoBaseEmissao(tipoDocumento)}/{sequenciaDfe}/ack";
+    private TipoDocumento TipoSelecionado => _configuracao.TipoDocumento;
+    private FluxoDocumento FluxoSelecionado => _configuracao.FluxoDocumento;
 
     private void TentarAtualizarTipoDocumento(string conteudo)
     {
@@ -69,7 +50,11 @@ public partial class TelaPrincipal : Form
         if (tipoDocumento is null || TipoSelecionado == tipoDocumento.Value)
             return;
 
-        cmbTipoDocumento.SelectedIndex = (int)tipoDocumento.Value;
+        AtualizarConfiguracao(_configuracao with
+        {
+            TipoDocumento = tipoDocumento.Value,
+            FluxoDocumento = tipoDocumento == TipoDocumento.MDFe ? FluxoDocumento.Emissao : FluxoSelecionado
+        });
     }
 
     private static TipoDocumento? InferirTipoDocumento(string conteudo)
@@ -119,29 +104,37 @@ public partial class TelaPrincipal : Form
             CarregarArquivo(openFileDialog.FileName);
     }
 
-    private void cmbTipoDocumento_SelectedIndexChanged(object? sender, EventArgs e)
+    private void AbrirConfiguracao()
     {
-        InvalidarPayload();
-        _documentoXml = null;
-        _campoSelecionado = null;
-        arvoreCampos.Nodes.Clear();
-        LimparEdicaoCampo();
-        AtualizarFluxosDisponiveis();
-        AtualizarOrientacaoDocumento();
-        AtualizarEndpointCalculado();
+        using var formulario = new FormularioConfiguracao(_configuracao);
+        if (formulario.ShowDialog(this) != DialogResult.OK || formulario.Configuracao is null)
+            return;
+
+        AtualizarConfiguracao(formulario.Configuracao);
+        _configuracaoConcluida = true;
+        AtualizarDisponibilidadeControles();
+        AtualizarStatus("Configuração salva. Abra um documento para começar.");
     }
 
-    private void cmbFluxoDocumento_SelectedIndexChanged(object? sender, EventArgs e)
+    private void AtualizarConfiguracao(ConfiguracaoDfe configuracao)
     {
-        InvalidarPayload();
-        AtualizarOrientacaoDocumento();
-        AtualizarEndpointCalculado();
+        var tipoOuFluxoAlterado = TipoSelecionado != configuracao.TipoDocumento ||
+                                  FluxoSelecionado != configuracao.FluxoDocumento;
+        _configuracao = configuracao;
+
+        if (tipoOuFluxoAlterado)
+        {
+            InvalidarPayload();
+            _documentoXml = null;
+            _campoSelecionado = null;
+            arvoreCampos.Nodes.Clear();
+            LimparEdicaoCampo();
+        }
+
+        AtualizarContextoDocumento();
     }
 
-    private void txtUrl_TextChanged(object? sender, EventArgs e) => AtualizarEndpointCalculado();
-
-    private void chkMostrarToken_CheckedChanged(object? sender, EventArgs e) =>
-        txtToken.UseSystemPasswordChar = !chkMostrarToken.Checked;
+    private void btnConfigurar_Click(object? sender, EventArgs e) => AbrirConfiguracao();
 
     private void btnGerarPrevia_Click(object? sender, EventArgs e)
     {
@@ -161,7 +154,7 @@ public partial class TelaPrincipal : Form
         try
         {
             var endereco = MontarEndereco();
-            var token = txtToken.Text.Trim();
+            var token = _configuracao.Token;
 
             if (_payloadPreparado is null)
                 GerarPrevia();
@@ -196,9 +189,7 @@ public partial class TelaPrincipal : Form
         {
             SelecionarFluxoEmissaoParaColeta();
             var endereco = MontarEnderecoColeta();
-            var token = txtToken.Text.Trim();
-
-            txtEndpoint.Text = endereco.AbsoluteUri;
+            var token = _configuracao.Token;
             txtRequisicao.Text = $"GET {endereco.AbsoluteUri}{Environment.NewLine}{Environment.NewLine}(A coleta não possui corpo de requisição.)";
             tabResultado.SelectedTab = tabResposta;
 
@@ -210,7 +201,7 @@ public partial class TelaPrincipal : Form
 
             if (resposta.Sucesso && TentarPreencherSequenciaColetada(resposta.Conteudo, out var sequenciaDfe))
             {
-                nudSequencia.Value = sequenciaDfe;
+                _configuracao = _configuracao with { SequenciaDfe = sequenciaDfe };
                 AtualizarStatus($"Coleta concluída. A sequência DFe {sequenciaDfe} foi preenchida para confirmação do ACK.");
                 return;
             }
@@ -235,7 +226,7 @@ public partial class TelaPrincipal : Form
         try
         {
             SelecionarFluxoEmissaoParaColeta();
-            var sequenciaDfe = decimal.ToInt32(nudSequencia.Value);
+            var sequenciaDfe = _configuracao.SequenciaDfe ?? 0;
             if (sequenciaDfe <= 0)
                 throw new InvalidOperationException("Colete os pendentes primeiro ou informe a sequência DFe para confirmar o ACK.");
 
@@ -251,8 +242,7 @@ public partial class TelaPrincipal : Form
                 return;
 
             var endereco = MontarEnderecoAcknowledgement(sequenciaDfe);
-            var token = txtToken.Text.Trim();
-            txtEndpoint.Text = endereco.AbsoluteUri;
+            var token = _configuracao.Token;
             txtRequisicao.Text = $"POST {endereco.AbsoluteUri}{Environment.NewLine}{Environment.NewLine}(O ACK não possui corpo de requisição.)";
             tabResultado.SelectedTab = tabResposta;
 
@@ -278,16 +268,15 @@ public partial class TelaPrincipal : Form
 
     private void btnLimpar_Click(object? sender, EventArgs e)
     {
-        txtArquivo.Clear();
-        txtDocumento.Clear();
+        DefinirConteudoDocumento(string.Empty);
         txtJson.Clear();
         txtRequisicao.Clear();
         txtResposta.Clear();
         txtHistorico.Clear();
-        nudSequencia.Value = 0;
-        txtPontoImpressao.Clear();
+        _configuracao = _configuracao with { SequenciaDfe = null, PontoImpressao = null };
         _documentoXml = null;
         _campoSelecionado = null;
+        LimparEstadoDocumento();
         arvoreCampos.Nodes.Clear();
         LimparEdicaoCampo();
         InvalidarPayload();
@@ -317,10 +306,10 @@ public partial class TelaPrincipal : Form
         try
         {
             var conteudoArquivo = File.ReadAllText(caminho, Encoding.UTF8);
-            txtArquivo.Text = caminho;
             DefinirConteudoDocumento(conteudoArquivo);
             TentarAtualizarTipoDocumento(conteudoArquivo);
             FormatarDocumentoAtual();
+            DefinirDocumentoOriginal();
             SelecionarAbaDocumento();
             AtualizarStatus("Arquivo carregado, formatado e pronto para editar os valores. Gere a prévia antes de enviar.");
         }
@@ -350,35 +339,24 @@ public partial class TelaPrincipal : Form
         return new RequisicaoRecepcaoDfe
         {
             DocumentoJson = _payloadPreparado.DocumentoJsonCompactado,
-            SeqIdentificaDfe = nudSequencia.Value > 0 ? decimal.ToInt32(nudSequencia.Value) : null,
-            PontoImpressao = string.IsNullOrWhiteSpace(txtPontoImpressao.Text) ? null : txtPontoImpressao.Text.Trim()
+            SeqIdentificaDfe = _configuracao.SequenciaDfe,
+            PontoImpressao = _configuracao.PontoImpressao
         };
     }
 
-    private Uri MontarEndereco() => MontarEndereco(ObterCaminhoEndpoint(TipoSelecionado, FluxoSelecionado));
+    private Uri MontarEndereco() =>
+        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoRetorno(TipoSelecionado, FluxoSelecionado));
 
-    private Uri MontarEnderecoColeta() => MontarEndereco(ObterCaminhoColeta(TipoSelecionado));
+    private Uri MontarEnderecoColeta() =>
+        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoColeta(TipoSelecionado));
 
     private Uri MontarEnderecoAcknowledgement(int sequenciaDfe) =>
-        MontarEndereco(ObterCaminhoAcknowledgement(TipoSelecionado, sequenciaDfe));
-
-    private Uri MontarEndereco(string caminhoEndpoint)
-    {
-        var urlPublicacao = txtUrl.Text.Trim().TrimEnd('/');
-        if (!Uri.TryCreate(urlPublicacao, UriKind.Absolute, out var publicacao) ||
-            publicacao.Scheme is not ("http" or "https") ||
-            !string.IsNullOrEmpty(publicacao.Query) || !string.IsNullOrEmpty(publicacao.Fragment))
-            throw new InvalidOperationException("Informe somente a URL base HTTP ou HTTPS da publicação, sem rota, parâmetros ou fragmentos.");
-
-        var endereco = new Uri(urlPublicacao + caminhoEndpoint, UriKind.Absolute);
-
-        return endereco;
-    }
+        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoAcknowledgement(TipoSelecionado, sequenciaDfe));
 
     private void SelecionarFluxoEmissaoParaColeta()
     {
         if (FluxoSelecionado != FluxoDocumento.Emissao)
-            cmbFluxoDocumento.SelectedIndex = (int)FluxoDocumento.Emissao;
+            AtualizarConfiguracao(_configuracao with { FluxoDocumento = FluxoDocumento.Emissao });
     }
 
     private static bool TentarPreencherSequenciaColetada(string conteudo, out int sequenciaDfe)
@@ -410,18 +388,6 @@ public partial class TelaPrincipal : Form
         }
     }
 
-    private void AtualizarEndpointCalculado()
-    {
-        try
-        {
-            txtEndpoint.Text = MontarEndereco().AbsoluteUri;
-        }
-        catch
-        {
-            txtEndpoint.Clear();
-        }
-    }
-
     private static string MontarResposta(RespostaEnvio resposta)
     {
         var cabecalho = $"HTTP {resposta.CodigoStatus} {resposta.DescricaoStatus}{Environment.NewLine}" +
@@ -429,45 +395,23 @@ public partial class TelaPrincipal : Form
         return cabecalho + (string.IsNullOrWhiteSpace(resposta.Conteudo) ? "(A resposta não possui corpo.)" : resposta.Conteudo);
     }
 
-    private void AtualizarOrientacaoDocumento()
+    private void AtualizarContextoDocumento()
     {
         var documentoXml = TipoSelecionado is TipoDocumento.NFe or TipoDocumento.CTe or TipoDocumento.MDFe;
         lblDocumento.Text = documentoXml ? "XML Editável" : "JSON Editável";
         tabConteudoDocumento.Text = documentoXml ? "XML" : "JSON";
         SelecionarAbaDocumento();
-
-        lblOrientacaoDocumento.Text = TipoSelecionado switch
-        {
-            TipoDocumento.NFe => $"NF-e {ObterDescricaoFluxo()}: selecione um XML nfeProc. Escolha uma tag na árvore para editar valor ou atributos.",
-            TipoDocumento.CTe => FluxoSelecionado == FluxoDocumento.Emissao
-                ? "CT-e emissão: o retorno será gravado em DFE_RETORNO. Selecione um XML cteProc ou cteSimpProc."
-                : "CT-e recepção: selecione um XML cteProc ou cteSimpProc. Escolha uma tag na árvore para editar valor ou atributos.",
-            TipoDocumento.NFSe => "NFS-e: selecione o JSON recebido pela integração. Nesse fluxo, a edição é feita diretamente no JSON.",
-            TipoDocumento.MDFe => "MDF-e: selecione um XML mdfeProc de retorno. Escolha uma tag na árvore para editar valor ou atributos.",
-            _ => string.Empty
-        };
     }
 
     private void SelecionarAbaDocumento() =>
         tabDocumento.SelectedTab = TipoSelecionado == TipoDocumento.NFSe ? tabConteudoDocumento : tabEdicaoCampos;
-
-    private void AtualizarFluxosDisponiveis()
-    {
-        var aceitaRecepcao = TipoSelecionado != TipoDocumento.MDFe;
-        cmbFluxoDocumento.Enabled = aceitaRecepcao;
-
-        if (!aceitaRecepcao && FluxoSelecionado != FluxoDocumento.Emissao)
-            cmbFluxoDocumento.SelectedIndex = (int)FluxoDocumento.Emissao;
-    }
-
-    private string ObterDescricaoFluxo() =>
-        FluxoSelecionado == FluxoDocumento.Emissao ? "emissão" : "recepção";
 
     private void txtDocumento_TextChanged(object? sender, EventArgs e)
     {
         if (_atualizandoDocumento)
             return;
 
+        AtualizarEstadoAlteracaoDocumento();
         TentarAtualizarTipoDocumento(txtDocumento.Text);
         _documentoXml = null;
         _campoSelecionado = null;
@@ -620,91 +564,129 @@ public partial class TelaPrincipal : Form
             return;
         }
 
-        _campoSelecionado = campo;
-        var possuiFilhos = campo.Elemento.ChildNodes.OfType<XmlElement>().Any();
-        txtCaminhoCampo.Text = campo.Caminho;
-        txtValorCampo.Text = possuiFilhos ? string.Empty : campo.Elemento.InnerText;
-        txtValorCampo.ReadOnly = possuiFilhos;
-        txtValorCampo.PlaceholderText = possuiFilhos
-            ? "Grupo: selecione uma tag filha para alterar um valor."
-            : string.Empty;
-        btnAplicarCampo.Enabled = true;
-
-        painelAtributos.SuspendLayout();
+        _atualizandoEditorCampo = true;
         try
         {
-            painelAtributos.Controls.Clear();
-            foreach (XmlAttribute atributo in campo.Elemento.Attributes)
-            {
-                var linha = new TableLayoutPanel
-                {
-                    AutoSize = false,
-                    ColumnCount = 2,
-                    Margin = new Padding(0, 1, 0, 1),
-                    Size = new Size(Math.Max(300, painelAtributos.ClientSize.Width - 8), 25)
-                };
-                linha.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));
-                linha.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            _campoSelecionado = campo;
+            var possuiFilhos = campo.Elemento.ChildNodes.OfType<XmlElement>().Any();
+            txtCaminhoCampo.Text = campo.Caminho;
+            txtValorCampo.Text = possuiFilhos ? string.Empty : campo.Elemento.InnerText;
+            txtValorCampo.ReadOnly = possuiFilhos;
+            txtValorCampo.PlaceholderText = possuiFilhos
+                ? "Grupo: selecione uma tag filha para alterar um valor."
+                : string.Empty;
 
-                var rotulo = new Label
+            painelAtributos.SuspendLayout();
+            try
+            {
+                painelAtributos.Controls.Clear();
+                var larguraDisponivel = painelAtributos.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 24;
+                var larguraCampo = Math.Max(240, larguraDisponivel / 2);
+                foreach (XmlAttribute atributo in campo.Elemento.Attributes)
                 {
-                    Dock = DockStyle.Fill,
-                    Text = atributo.Name,
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-                var entrada = new TextBox
-                {
-                    Dock = DockStyle.Fill,
-                    Tag = atributo,
-                    Text = atributo.Value,
-                    Margin = new Padding(0, 1, 0, 1)
-                };
-                linha.Controls.Add(rotulo, 0, 0);
-                linha.Controls.Add(entrada, 1, 0);
-                painelAtributos.Controls.Add(linha);
+                    var linha = new TableLayoutPanel
+                    {
+                        AutoSize = false,
+                        Margin = new Padding(0, 0, 8, 4),
+                        ColumnCount = 1,
+                        RowCount = 2,
+                        Size = new Size(larguraCampo, 41)
+                    };
+                    linha.RowStyles.Add(new RowStyle(SizeType.Absolute, 16F));
+                    linha.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+                    var rotulo = new Label
+                    {
+                        AutoEllipsis = true,
+                        Dock = DockStyle.Fill,
+                        Text = atributo.Name,
+                        TextAlign = ContentAlignment.MiddleLeft
+                    };
+                    var entrada = new TextBox
+                    {
+                        Dock = DockStyle.Fill,
+                        Tag = atributo,
+                        Text = atributo.Value,
+                        Margin = new Padding(0, 1, 0, 1)
+                    };
+                    entrada.TextChanged += entradaAtributo_TextChanged;
+                    linha.Controls.Add(rotulo, 0, 0);
+                    linha.Controls.Add(entrada, 0, 1);
+                    painelAtributos.Controls.Add(linha);
+                }
+            }
+            finally
+            {
+                painelAtributos.ResumeLayout();
             }
         }
         finally
         {
-            painelAtributos.ResumeLayout();
+            _atualizandoEditorCampo = false;
         }
     }
 
-    private void btnAplicarCampo_Click(object? sender, EventArgs e)
+    private void txtValorCampo_TextChanged(object? sender, EventArgs e)
     {
-        if (_campoSelecionado is null || _documentoXml is null)
-        {
-            ExibirErro("Selecione um campo do XML antes de aplicar uma alteração.");
+        if (_atualizandoEditorCampo || _campoSelecionado is null || _documentoXml is null || txtValorCampo.ReadOnly)
             return;
-        }
 
         var elemento = _campoSelecionado.Elemento;
         if (!elemento.ChildNodes.OfType<XmlElement>().Any())
             elemento.InnerText = txtValorCampo.Text;
 
-        foreach (var entrada in painelAtributos.Controls
-                     .OfType<TableLayoutPanel>()
-                     .SelectMany(linha => linha.Controls.OfType<TextBox>()))
-        {
-            if (entrada.Tag is XmlAttribute atributo)
-                atributo.Value = entrada.Text;
-        }
+        AplicarAlteracaoAutomatica();
+    }
+
+    private void entradaAtributo_TextChanged(object? sender, EventArgs e)
+    {
+        if (_atualizandoEditorCampo || sender is not TextBox { Tag: XmlAttribute atributo })
+            return;
+
+        atributo.Value = ((TextBox)sender).Text;
+        AplicarAlteracaoAutomatica();
+    }
+
+    private void AplicarAlteracaoAutomatica()
+    {
+        if (_campoSelecionado is null || _documentoXml is null)
+            return;
 
         var caminho = _campoSelecionado.Caminho;
         DefinirConteudoDocumento(FormatarXml(_documentoXml));
-        PreencherArvoreCampos(caminho);
+        AtualizarEstadoAlteracaoDocumento();
+        AtualizarTextoNoArvore(caminho);
         InvalidarPayload();
-        AtualizarStatus($"Campo alterado: {caminho}. Gere a prévia antes de enviar.");
+        AtualizarStatus($"Alteração aplicada automaticamente: {caminho}. Gere a prévia antes de enviar.");
+    }
+
+    private void AtualizarTextoNoArvore(string caminho)
+    {
+        var no = LocalizarNoPorCaminho(arvoreCampos.Nodes, caminho);
+        if (no?.Tag is not CampoXmlSelecionado campo || campo.Elemento.ChildNodes.OfType<XmlElement>().Any())
+            return;
+
+        var valor = campo.Elemento.InnerText.Trim();
+        no.Text = string.IsNullOrEmpty(valor)
+            ? campo.Elemento.Name
+            : $"{campo.Elemento.Name} = {valor}";
     }
 
     private void LimparEdicaoCampo()
     {
-        txtCaminhoCampo.Clear();
-        txtValorCampo.Clear();
-        txtValorCampo.ReadOnly = true;
-        txtValorCampo.PlaceholderText = "Selecione uma tag na árvore.";
-        painelAtributos.Controls.Clear();
-        btnAplicarCampo.Enabled = false;
+        _atualizandoEditorCampo = true;
+        try
+        {
+            txtCaminhoCampo.Clear();
+            txtValorCampo.Clear();
+            txtValorCampo.ReadOnly = true;
+            txtValorCampo.PlaceholderText = "Selecione uma tag na árvore.";
+            painelAtributos.Controls.Clear();
+        }
+        finally
+        {
+            _atualizandoEditorCampo = false;
+        }
     }
 
     private void DefinirConteudoDocumento(string conteudo)
@@ -720,6 +702,25 @@ public partial class TelaPrincipal : Form
         }
     }
 
+    private void DefinirDocumentoOriginal()
+    {
+        _conteudoOriginalDocumento = txtDocumento.Text;
+        _documentoAlterado = false;
+    }
+
+    private void LimparEstadoDocumento()
+    {
+        _conteudoOriginalDocumento = null;
+        _documentoAlterado = false;
+    }
+
+    private void AtualizarEstadoAlteracaoDocumento()
+    {
+        _documentoAlterado = _conteudoOriginalDocumento is null
+            ? !string.IsNullOrWhiteSpace(txtDocumento.Text)
+            : !string.Equals(txtDocumento.Text, _conteudoOriginalDocumento, StringComparison.Ordinal);
+    }
+
     private void InvalidarPayload()
     {
         _payloadPreparado = null;
@@ -729,12 +730,22 @@ public partial class TelaPrincipal : Form
 
     private void AlternarEnvioEmAndamento(bool emAndamento)
     {
+        _operacaoEmAndamento = emAndamento;
         UseWaitCursor = emAndamento;
-        btnEnviar.Enabled = !emAndamento;
-        btnGerarPrevia.Enabled = !emAndamento;
-        btnColetarPendentes.Enabled = !emAndamento;
-        btnConfirmarAck.Enabled = !emAndamento;
-        btnAbrirArquivo.Enabled = !emAndamento;
+        AtualizarDisponibilidadeControles();
+    }
+
+    private void AtualizarDisponibilidadeControles()
+    {
+        var liberado = _configuracaoConcluida && !_operacaoEmAndamento;
+        btnConfigurar.Enabled = !_operacaoEmAndamento;
+        btnAbrirArquivo.Enabled = liberado;
+        btnGerarPrevia.Enabled = liberado;
+        btnEnviar.Enabled = liberado;
+        btnColetarPendentes.Enabled = liberado;
+        btnConfirmarAck.Enabled = liberado;
+        btnLimpar.Enabled = liberado;
+        splitConteudo.Enabled = liberado;
     }
 
     private void AtualizarStatus(string mensagem, bool erro = false)
@@ -762,6 +773,9 @@ public partial class TelaPrincipal : Form
         {
             case Keys.F2:
                 btnAbrirArquivo.PerformClick();
+                break;
+            case Keys.F3:
+                btnConfigurar.PerformClick();
                 break;
             case Keys.F4:
                 btnColetarPendentes.PerformClick();
