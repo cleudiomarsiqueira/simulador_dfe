@@ -9,15 +9,28 @@ namespace SimuladorDFe;
 
 public partial class TelaPrincipal : Form
 {
+    private static readonly TimeSpan TempoMaximoRequisicao = TimeSpan.FromSeconds(5);
+
+    private enum ResultadoRequisicao
+    {
+        Neutro,
+        Sucesso,
+        Erro
+    }
+
     private readonly PreparadorPayloadDfe _preparador = new();
     private readonly HttpClient _httpClient = new();
     private readonly ClienteIntegracaoDfe _cliente;
     private ConfiguracaoDfe _configuracao = ConfiguracaoDfe.Padrao;
+    private TipoDocumento _tipoDocumentoColeta = TipoDocumento.NFe;
+    private int? _sequenciaDfeColeta;
     private PayloadPreparado? _payloadPreparado;
     private XmlDocument? _documentoXml;
     private CampoXmlSelecionado? _campoSelecionado;
     private bool _atualizandoDocumento;
     private bool _atualizandoEditorCampo;
+    private bool _atualizandoParametrosRetorno;
+    private bool _atualizandoParametrosColeta;
     // Mantém o estado em memória para um futuro indicador visual de documento alterado.
     // A referência é definida depois de o arquivo ser normalizado pela aplicação.
     private string? _conteudoOriginalDocumento;
@@ -29,6 +42,8 @@ public partial class TelaPrincipal : Form
     {
         InitializeComponent();
         _cliente = new ClienteIntegracaoDfe(_httpClient);
+        AtualizarParametrosRetorno();
+        AtualizarParametrosColeta();
         AtualizarContextoDocumento();
         AtualizarDisponibilidadeControles();
         Shown += (_, _) => AbrirConfiguracao();
@@ -106,11 +121,15 @@ public partial class TelaPrincipal : Form
 
     private void AbrirConfiguracao()
     {
-        using var formulario = new FormularioConfiguracao(_configuracao);
+        using var formulario = new FormularioConfiguracao(new ConfiguracaoApi(_configuracao.UrlBaseApi, _configuracao.Token));
         if (formulario.ShowDialog(this) != DialogResult.OK || formulario.Configuracao is null)
             return;
 
-        AtualizarConfiguracao(formulario.Configuracao);
+        AtualizarConfiguracao(_configuracao with
+        {
+            UrlBaseApi = formulario.Configuracao.UrlBaseApi,
+            Token = formulario.Configuracao.Token
+        });
         _configuracaoConcluida = true;
         AtualizarDisponibilidadeControles();
         AtualizarStatus("Configuração salva. Abra um documento para começar.");
@@ -131,22 +150,153 @@ public partial class TelaPrincipal : Form
             LimparEdicaoCampo();
         }
 
+        AtualizarParametrosRetorno();
         AtualizarContextoDocumento();
+        AtualizarPreviaAutomaticamente();
+        AtualizarDisponibilidadeControles();
     }
 
-    private void btnConfigurar_Click(object? sender, EventArgs e) => AbrirConfiguracao();
+    private void menuFerramentasConfigurar_Click(object? sender, EventArgs e) => AbrirConfiguracao();
 
-    private void btnGerarPrevia_Click(object? sender, EventArgs e)
+    private void menuArquivoLimpar_Click(object? sender, EventArgs e)
     {
+        if (tabProcessos.SelectedTab == tabColeta)
+            LimparColeta();
+        else
+            LimparRetorno();
+    }
+
+    private void menuArquivoSair_Click(object? sender, EventArgs e) => Close();
+
+    private void menuEditarValores_Click(object? sender, EventArgs e)
+    {
+        tabProcessos.SelectedTab = tabRetorno;
+        tabDocumento.SelectedTab = tabEdicaoCampos;
+    }
+
+    private void menuEditarDocumento_Click(object? sender, EventArgs e)
+    {
+        tabProcessos.SelectedTab = tabRetorno;
+        tabDocumento.SelectedTab = tabConteudoDocumento;
+    }
+
+    private void menuAjudaSobre_Click(object? sender, EventArgs e)
+    {
+        using var formulario = new FormularioSobre();
+        formulario.ShowDialog(this);
+    }
+
+    private void tabProcessos_SelectedIndexChanged(object? sender, EventArgs e) => AtualizarDisponibilidadeControles();
+
+    private void tabResultado_SelectedIndexChanged(object? sender, EventArgs e) =>
+        SelecionarTextoDaAba(tabResultado.SelectedTab switch
+        {
+            var aba when aba == tabJson => txtJson,
+            var aba when aba == tabRequisicao => txtRequisicao,
+            var aba when aba == tabResposta => txtResposta,
+            var aba when aba == tabHistorico => txtHistorico,
+            _ => null
+        });
+
+    private void tabResultadoColeta_SelectedIndexChanged(object? sender, EventArgs e) =>
+        SelecionarTextoDaAba(tabResultadoColeta.SelectedTab switch
+        {
+            var aba when aba == tabRequisicaoColeta => txtRequisicaoColeta,
+            var aba when aba == tabRespostaColeta => txtRespostaColeta,
+            var aba when aba == tabHistoricoColeta => txtHistoricoColeta,
+            _ => null
+        });
+
+    private static void SelecionarTextoDaAba(RichTextBox? texto)
+    {
+        if (texto is null || texto.TextLength == 0)
+            return;
+
+        texto.Focus();
+        texto.SelectAll();
+    }
+
+    private void AtualizarParametrosRetorno()
+    {
+        _atualizandoParametrosRetorno = true;
         try
         {
-            GerarPrevia();
-            tabResultado.SelectedTab = tabJson;
+            cmbTipoDocumentoRetorno.SelectedIndex = (int)TipoSelecionado;
+            cmbFluxoRetorno.SelectedIndex = (int)FluxoSelecionado;
+            cmbFluxoRetorno.Enabled = TipoSelecionado != TipoDocumento.MDFe;
+            nudSequenciaRetorno.Value = _configuracao.SequenciaDfe ?? 0;
+            txtPontoImpressaoRetorno.Text = _configuracao.PontoImpressao ?? string.Empty;
         }
-        catch (Exception ex)
+        finally
         {
-            ExibirErro(ex.Message);
+            _atualizandoParametrosRetorno = false;
         }
+    }
+
+    private void AtualizarParametrosColeta()
+    {
+        _atualizandoParametrosColeta = true;
+        try
+        {
+            cmbTipoDocumentoColeta.SelectedIndex = (int)_tipoDocumentoColeta;
+        }
+        finally
+        {
+            _atualizandoParametrosColeta = false;
+        }
+    }
+
+    private void cmbTipoDocumentoRetorno_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_atualizandoParametrosRetorno || cmbTipoDocumentoRetorno.SelectedIndex < 0)
+            return;
+
+        var tipoDocumento = (TipoDocumento)cmbTipoDocumentoRetorno.SelectedIndex;
+        AtualizarConfiguracao(_configuracao with
+        {
+            TipoDocumento = tipoDocumento,
+            FluxoDocumento = tipoDocumento == TipoDocumento.MDFe ? FluxoDocumento.Emissao : FluxoSelecionado
+        });
+    }
+
+    private void cmbFluxoRetorno_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_atualizandoParametrosRetorno || cmbFluxoRetorno.SelectedIndex < 0)
+            return;
+
+        AtualizarConfiguracao(_configuracao with { FluxoDocumento = (FluxoDocumento)cmbFluxoRetorno.SelectedIndex });
+    }
+
+    private void nudSequenciaRetorno_ValueChanged(object? sender, EventArgs e)
+    {
+        if (_atualizandoParametrosRetorno)
+            return;
+
+        AtualizarConfiguracao(_configuracao with
+        {
+            SequenciaDfe = nudSequenciaRetorno.Value > 0 ? decimal.ToInt32(nudSequenciaRetorno.Value) : null
+        });
+    }
+
+    private void txtPontoImpressaoRetorno_TextChanged(object? sender, EventArgs e)
+    {
+        if (_atualizandoParametrosRetorno)
+            return;
+
+        AtualizarConfiguracao(_configuracao with
+        {
+            PontoImpressao = string.IsNullOrWhiteSpace(txtPontoImpressaoRetorno.Text)
+                ? null
+                : txtPontoImpressaoRetorno.Text.Trim()
+        });
+    }
+
+    private void cmbTipoDocumentoColeta_SelectedIndexChanged(object? sender, EventArgs e)
+    {
+        if (_atualizandoParametrosColeta || cmbTipoDocumentoColeta.SelectedIndex < 0)
+            return;
+
+        _tipoDocumentoColeta = (TipoDocumento)cmbTipoDocumentoColeta.SelectedIndex;
     }
 
     private async void btnEnviar_Click(object? sender, EventArgs e)
@@ -157,7 +307,7 @@ public partial class TelaPrincipal : Form
             var token = _configuracao.Token;
 
             if (_payloadPreparado is null)
-                GerarPrevia();
+                throw new InvalidOperationException("A prévia automática ainda não está válida. Verifique o documento informado.");
 
             var requisicao = CriarRequisicao();
             txtRequisicao.Text = _cliente.SerializarRequisicao(requisicao);
@@ -165,17 +315,20 @@ public partial class TelaPrincipal : Form
 
             AlternarEnvioEmAndamento(true);
             AtualizarStatus("Enviando POST para a API...");
-            var resposta = await _cliente.EnviarAsync(endereco, token, requisicao, CancellationToken.None);
+            var resposta = await ExecutarComTimeoutAsync(
+                cancellationToken => _cliente.EnviarAsync(endereco, token, requisicao, cancellationToken));
             txtResposta.Text = MontarResposta(resposta);
             txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  POST {resposta.CodigoStatus} {resposta.DescricaoStatus} ({resposta.Duracao.TotalMilliseconds:N0} ms){Environment.NewLine}");
             AtualizarStatus(resposta.Sucesso
                 ? $"POST concluído com HTTP {resposta.CodigoStatus}."
-                : $"A API respondeu HTTP {resposta.CodigoStatus}. Consulte a aba Resposta.", !resposta.Sucesso);
+                : $"A API respondeu HTTP {resposta.CodigoStatus}. Consulte a aba Resposta.",
+                resposta.Sucesso ? ResultadoRequisicao.Sucesso : ResultadoRequisicao.Erro);
         }
         catch (Exception ex)
         {
-            txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  ERRO: {ex.Message}{Environment.NewLine}");
-            ExibirErro(ex.Message);
+            var mensagem = TraduzirErroDocumento(ex);
+            txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  ERRO: {mensagem}{Environment.NewLine}");
+            ExibirErro(mensagem);
         }
         finally
         {
@@ -187,32 +340,37 @@ public partial class TelaPrincipal : Form
     {
         try
         {
-            SelecionarFluxoEmissaoParaColeta();
-            var endereco = MontarEnderecoColeta();
+            var endereco = MontarEnderecoColeta(_tipoDocumentoColeta);
             var token = _configuracao.Token;
-            txtRequisicao.Text = $"GET {endereco.AbsoluteUri}{Environment.NewLine}{Environment.NewLine}(A coleta não possui corpo de requisição.)";
-            tabResultado.SelectedTab = tabResposta;
+            _sequenciaDfeColeta = null;
+            txtRequisicaoColeta.Text = $"GET {endereco.AbsoluteUri}{Environment.NewLine}{Environment.NewLine}(A coleta não possui corpo de requisição.)";
+            tabResultadoColeta.SelectedTab = tabRespostaColeta;
 
             AlternarEnvioEmAndamento(true);
-            AtualizarStatus("Coletando documentos pendentes da API...");
-            var resposta = await _cliente.ColetarPendentesAsync(endereco, token, CancellationToken.None);
-            txtResposta.Text = MontarResposta(resposta);
-            txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  GET pendentes {resposta.CodigoStatus} {resposta.DescricaoStatus} ({resposta.Duracao.TotalMilliseconds:N0} ms){Environment.NewLine}");
+            AtualizarStatus("Coletando documentos pendentes de emissão...");
+            var resposta = await ExecutarComTimeoutAsync(
+                cancellationToken => _cliente.ColetarPendentesAsync(endereco, token, cancellationToken));
+            txtRespostaColeta.Text = MontarResposta(resposta);
+            txtHistoricoColeta.AppendText($"{DateTime.Now:HH:mm:ss}  GET pendentes {_tipoDocumentoColeta} {resposta.CodigoStatus} {resposta.DescricaoStatus} ({resposta.Duracao.TotalMilliseconds:N0} ms){Environment.NewLine}");
 
             if (resposta.Sucesso && TentarPreencherSequenciaColetada(resposta.Conteudo, out var sequenciaDfe))
             {
-                _configuracao = _configuracao with { SequenciaDfe = sequenciaDfe };
-                AtualizarStatus($"Coleta concluída. A sequência DFe {sequenciaDfe} foi preenchida para confirmação do ACK.");
+                _sequenciaDfeColeta = sequenciaDfe;
+                AtualizarParametrosColeta();
+                AtualizarStatus(
+                    $"Coleta concluída. A sequência DFe {sequenciaDfe} será sugerida ao confirmar o ACK.",
+                    ResultadoRequisicao.Sucesso);
                 return;
             }
 
             AtualizarStatus(resposta.Sucesso
                 ? "Coleta concluída. Informe a sequência DFe retornada antes de confirmar o ACK."
-                : $"A API respondeu HTTP {resposta.CodigoStatus}. Consulte a aba Resposta.", !resposta.Sucesso);
+                : $"A API respondeu HTTP {resposta.CodigoStatus}. Consulte a aba Resposta.",
+                resposta.Sucesso ? ResultadoRequisicao.Sucesso : ResultadoRequisicao.Erro);
         }
         catch (Exception ex)
         {
-            txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  ERRO na coleta: {ex.Message}{Environment.NewLine}");
+            txtHistoricoColeta.AppendText($"{DateTime.Now:HH:mm:ss}  ERRO na coleta: {ex.Message}{Environment.NewLine}");
             ExibirErro(ex.Message);
         }
         finally
@@ -225,39 +383,31 @@ public partial class TelaPrincipal : Form
     {
         try
         {
-            SelecionarFluxoEmissaoParaColeta();
-            var sequenciaDfe = _configuracao.SequenciaDfe ?? 0;
-            if (sequenciaDfe <= 0)
-                throw new InvalidOperationException("Colete os pendentes primeiro ou informe a sequência DFe para confirmar o ACK.");
-
-            var confirmacao = MessageBox.Show(
-                this,
-                $"Confirmar o ACK da sequência DFe {sequenciaDfe}? Essa ação altera o status do documento coletado.",
-                "Confirmar ACK",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning,
-                MessageBoxDefaultButton.Button2);
-
-            if (confirmacao != DialogResult.Yes)
+            using var formulario = new FormularioConfirmarAck(_tipoDocumentoColeta, _sequenciaDfeColeta);
+            if (formulario.ShowDialog(this) != DialogResult.OK || formulario.SequenciaDfe is null)
                 return;
 
-            var endereco = MontarEnderecoAcknowledgement(sequenciaDfe);
+            var sequenciaDfe = formulario.SequenciaDfe.Value;
+            _sequenciaDfeColeta = sequenciaDfe;
+            var endereco = MontarEnderecoAcknowledgement(_tipoDocumentoColeta, sequenciaDfe);
             var token = _configuracao.Token;
-            txtRequisicao.Text = $"POST {endereco.AbsoluteUri}{Environment.NewLine}{Environment.NewLine}(O ACK não possui corpo de requisição.)";
-            tabResultado.SelectedTab = tabResposta;
+            txtRequisicaoColeta.Text = $"POST {endereco.AbsoluteUri}{Environment.NewLine}{Environment.NewLine}(O ACK não possui corpo de requisição.)";
+            tabResultadoColeta.SelectedTab = tabRespostaColeta;
 
             AlternarEnvioEmAndamento(true);
-            AtualizarStatus($"Confirmando o ACK da sequência DFe {sequenciaDfe}...");
-            var resposta = await _cliente.ConfirmarAcknowledgementAsync(endereco, token, CancellationToken.None);
-            txtResposta.Text = MontarResposta(resposta);
-            txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  POST ACK {sequenciaDfe} {resposta.CodigoStatus} {resposta.DescricaoStatus} ({resposta.Duracao.TotalMilliseconds:N0} ms){Environment.NewLine}");
+            AtualizarStatus($"Confirmando o recebimento da sequência DFe {sequenciaDfe}...");
+            var resposta = await ExecutarComTimeoutAsync(
+                cancellationToken => _cliente.ConfirmarAcknowledgementAsync(endereco, token, cancellationToken));
+            txtRespostaColeta.Text = MontarResposta(resposta);
+            txtHistoricoColeta.AppendText($"{DateTime.Now:HH:mm:ss}  POST ACK {_tipoDocumentoColeta} {sequenciaDfe} {resposta.CodigoStatus} {resposta.DescricaoStatus} ({resposta.Duracao.TotalMilliseconds:N0} ms){Environment.NewLine}");
             AtualizarStatus(resposta.Sucesso
-                ? $"ACK da sequência DFe {sequenciaDfe} confirmado com HTTP {resposta.CodigoStatus}."
-                : $"A API respondeu HTTP {resposta.CodigoStatus}. Consulte a aba Resposta.", !resposta.Sucesso);
+                ? $"Recebimento da sequência DFe {sequenciaDfe} confirmado com HTTP {resposta.CodigoStatus}."
+                : $"A API respondeu HTTP {resposta.CodigoStatus}. Consulte a aba Resposta.",
+                resposta.Sucesso ? ResultadoRequisicao.Sucesso : ResultadoRequisicao.Erro);
         }
         catch (Exception ex)
         {
-            txtHistorico.AppendText($"{DateTime.Now:HH:mm:ss}  ERRO no ACK: {ex.Message}{Environment.NewLine}");
+            txtHistoricoColeta.AppendText($"{DateTime.Now:HH:mm:ss}  ERRO no ACK: {ex.Message}{Environment.NewLine}");
             ExibirErro(ex.Message);
         }
         finally
@@ -267,6 +417,42 @@ public partial class TelaPrincipal : Form
     }
 
     private void btnLimpar_Click(object? sender, EventArgs e)
+    {
+        LimparRetorno();
+    }
+
+    private void btnSalvarXmlAlterado_Click(object? sender, EventArgs e)
+    {
+        if (!_documentoAlterado || _documentoXml is null)
+            return;
+
+        using var dialogoSalvar = new SaveFileDialog
+        {
+            AddExtension = true,
+            DefaultExt = "xml",
+            FileName = "documento-alterado.xml",
+            Filter = "Arquivos XML (*.xml)|*.xml|Todos os arquivos (*.*)|*.*",
+            OverwritePrompt = true,
+            Title = "Salvar XML Alterado"
+        };
+
+        if (dialogoSalvar.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        try
+        {
+            File.WriteAllText(dialogoSalvar.FileName, txtDocumento.Text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            AtualizarStatus($"XML alterado salvo em {Path.GetFileName(dialogoSalvar.FileName)}.", ResultadoRequisicao.Sucesso);
+        }
+        catch (Exception ex)
+        {
+            ExibirErro($"Não foi possível salvar o XML alterado: {ex.Message}");
+        }
+    }
+
+    private void btnLimparColeta_Click(object? sender, EventArgs e) => LimparColeta();
+
+    private void LimparRetorno()
     {
         DefinirConteudoDocumento(string.Empty);
         txtJson.Clear();
@@ -280,7 +466,19 @@ public partial class TelaPrincipal : Form
         arvoreCampos.Nodes.Clear();
         LimparEdicaoCampo();
         InvalidarPayload();
-        AtualizarStatus("Documento e resultados removidos. URL e token foram preservados.");
+        AtualizarParametrosRetorno();
+        AtualizarDisponibilidadeControles();
+        AtualizarStatus("Dados do retorno removidos. A configuração compartilhada foi preservada.");
+    }
+
+    private void LimparColeta()
+    {
+        _sequenciaDfeColeta = null;
+        AtualizarParametrosColeta();
+        txtRequisicaoColeta.Clear();
+        txtRespostaColeta.Clear();
+        txtHistoricoColeta.Clear();
+        AtualizarStatus("Dados da coleta removidos. A configuração compartilhada foi preservada.");
     }
 
     private void txtDocumento_DragEnter(object? sender, DragEventArgs e)
@@ -311,30 +509,74 @@ public partial class TelaPrincipal : Form
             FormatarDocumentoAtual();
             DefinirDocumentoOriginal();
             SelecionarAbaDocumento();
-            AtualizarStatus("Arquivo carregado, formatado e pronto para editar os valores. Gere a prévia antes de enviar.");
+            GerarPrevia();
+            AtualizarDisponibilidadeControles();
+            AtualizarStatus("Arquivo carregado, formatado e com prévia atualizada. Edite os valores ou envie o retorno.");
         }
         catch (Exception ex)
         {
-            ExibirErro($"Não foi possível abrir o arquivo: {ex.Message}");
+            AtualizarDisponibilidadeControles();
+            ExibirErro($"Não foi possível abrir o arquivo: {TraduzirErroDocumento(ex)}");
         }
     }
 
     private void GerarPrevia()
     {
+        if (string.IsNullOrWhiteSpace(txtDocumento.Text))
+            throw new InvalidOperationException("Carregue ou cole um XML/JSON antes de enviar o retorno.");
+
         if ((TipoSelecionado is TipoDocumento.NFe or TipoDocumento.CTe or TipoDocumento.MDFe) && _documentoXml is null)
             AtualizarEstruturaXml();
 
         var conteudo = txtDocumento.Text;
         _payloadPreparado = _preparador.Preparar(TipoSelecionado, conteudo);
-        txtJson.Text = _payloadPreparado.JsonDocumento;
+        txtJson.Text = FormatarJsonParaExibicao(_payloadPreparado.JsonDocumento);
         txtRequisicao.Text = _cliente.SerializarRequisicao(CriarRequisicao());
-        AtualizarStatus("Payload validado localmente: XML/JSON, GZip e Base64 estão prontos para o POST.");
+        AtualizarDisponibilidadeControles();
+        AtualizarStatus("Prévia atualizada automaticamente: XML/JSON, GZip e Base64 estão prontos para o POST.");
     }
+
+    private void AtualizarPreviaAutomaticamente()
+    {
+        if (string.IsNullOrWhiteSpace(txtDocumento.Text))
+        {
+            InvalidarPayload();
+            return;
+        }
+
+        try
+        {
+            GerarPrevia();
+        }
+        catch (XmlException)
+        {
+            InvalidarPayload();
+        }
+        catch (JsonReaderException)
+        {
+            InvalidarPayload();
+        }
+        catch (ArgumentException)
+        {
+            InvalidarPayload();
+        }
+        catch (InvalidOperationException)
+        {
+            InvalidarPayload();
+        }
+        finally
+        {
+            AtualizarDisponibilidadeControles();
+        }
+    }
+
+    private static string FormatarJsonParaExibicao(string json) =>
+        JToken.Parse(json).ToString(Newtonsoft.Json.Formatting.Indented);
 
     private RequisicaoRecepcaoDfe CriarRequisicao()
     {
         if (_payloadPreparado is null)
-            throw new InvalidOperationException("Gere a prévia do payload antes de montar a requisição.");
+            throw new InvalidOperationException("A prévia automática ainda não está disponível para o documento informado.");
 
         return new RequisicaoRecepcaoDfe
         {
@@ -347,16 +589,23 @@ public partial class TelaPrincipal : Form
     private Uri MontarEndereco() =>
         RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoRetorno(TipoSelecionado, FluxoSelecionado));
 
-    private Uri MontarEnderecoColeta() =>
-        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoColeta(TipoSelecionado));
+    private Uri MontarEnderecoColeta(TipoDocumento tipoDocumento) =>
+        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoColeta(tipoDocumento));
 
-    private Uri MontarEnderecoAcknowledgement(int sequenciaDfe) =>
-        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoAcknowledgement(TipoSelecionado, sequenciaDfe));
+    private Uri MontarEnderecoAcknowledgement(TipoDocumento tipoDocumento, int sequenciaDfe) =>
+        RoteamentoDfe.MontarEndereco(_configuracao.UrlBaseApi, RoteamentoDfe.ObterCaminhoAcknowledgement(tipoDocumento, sequenciaDfe));
 
-    private void SelecionarFluxoEmissaoParaColeta()
+    private static async Task<T> ExecutarComTimeoutAsync<T>(Func<CancellationToken, Task<T>> operacao)
     {
-        if (FluxoSelecionado != FluxoDocumento.Emissao)
-            AtualizarConfiguracao(_configuracao with { FluxoDocumento = FluxoDocumento.Emissao });
+        using var cancelamento = new CancellationTokenSource(TempoMaximoRequisicao);
+        try
+        {
+            return await operacao(cancelamento.Token);
+        }
+        catch (OperationCanceledException) when (cancelamento.IsCancellationRequested)
+        {
+            throw new TimeoutException($"A API não respondeu em até {TempoMaximoRequisicao.TotalSeconds:N0} segundos.");
+        }
     }
 
     private static bool TentarPreencherSequenciaColetada(string conteudo, out int sequenciaDfe)
@@ -418,6 +667,7 @@ public partial class TelaPrincipal : Form
         arvoreCampos.Nodes.Clear();
         LimparEdicaoCampo();
         InvalidarPayload();
+        AtualizarPreviaAutomaticamente();
     }
 
     private void txtPesquisarTags_TextChanged(object? sender, EventArgs e)
@@ -657,7 +907,8 @@ public partial class TelaPrincipal : Form
         AtualizarEstadoAlteracaoDocumento();
         AtualizarTextoNoArvore(caminho);
         InvalidarPayload();
-        AtualizarStatus($"Alteração aplicada automaticamente: {caminho}. Gere a prévia antes de enviar.");
+        AtualizarPreviaAutomaticamente();
+        AtualizarStatus($"Alteração aplicada e prévia atualizada automaticamente: {caminho}.");
     }
 
     private void AtualizarTextoNoArvore(string caminho)
@@ -738,59 +989,90 @@ public partial class TelaPrincipal : Form
     private void AtualizarDisponibilidadeControles()
     {
         var liberado = _configuracaoConcluida && !_operacaoEmAndamento;
-        btnConfigurar.Enabled = !_operacaoEmAndamento;
-        btnAbrirArquivo.Enabled = liberado;
-        btnGerarPrevia.Enabled = liberado;
-        btnEnviar.Enabled = liberado;
-        btnColetarPendentes.Enabled = liberado;
-        btnConfirmarAck.Enabled = liberado;
-        btnLimpar.Enabled = liberado;
-        splitConteudo.Enabled = liberado;
+        var retornoAtivo = liberado && tabProcessos.SelectedTab == tabRetorno;
+        var documentoCarregado = !string.IsNullOrWhiteSpace(txtDocumento.Text);
+        menuFerramentasConfigurar.Enabled = !_operacaoEmAndamento;
+        menuArquivoAbrir.Enabled = retornoAtivo;
+        menuArquivoLimpar.Enabled = liberado;
+        menuArquivoSair.Enabled = !_operacaoEmAndamento;
+        menuEditarValores.Enabled = retornoAtivo;
+        menuEditarDocumento.Enabled = retornoAtivo;
+        btnAbrirArquivo.Enabled = retornoAtivo;
+        btnEnviar.Enabled = retornoAtivo && documentoCarregado && _payloadPreparado is not null;
+        btnSalvarXmlAlterado.Enabled = retornoAtivo && _documentoAlterado && _documentoXml is not null;
+        btnColetarPendentes.Enabled = liberado && tabProcessos.SelectedTab == tabColeta;
+        btnConfirmarAck.Enabled = liberado && tabProcessos.SelectedTab == tabColeta;
+        btnLimpar.Enabled = retornoAtivo;
+        btnLimparColeta.Enabled = liberado && tabProcessos.SelectedTab == tabColeta;
+        tabProcessos.Enabled = liberado;
     }
 
-    private void AtualizarStatus(string mensagem, bool erro = false)
+    private void AtualizarStatus(string mensagem, ResultadoRequisicao resultado = ResultadoRequisicao.Neutro)
     {
         lblStatus.Text = mensagem;
-        lblStatus.ForeColor = erro ? Color.Firebrick : SystemColors.ControlText;
+        lblStatus.ForeColor = resultado == ResultadoRequisicao.Erro ? Color.Firebrick : SystemColors.ControlText;
+        lblIndicadorStatus.ForeColor = resultado switch
+        {
+            ResultadoRequisicao.Sucesso => Color.ForestGreen,
+            ResultadoRequisicao.Erro => Color.Firebrick,
+            _ => Color.DimGray
+        };
+        lblIndicadorStatus.ToolTipText = resultado switch
+        {
+            ResultadoRequisicao.Sucesso => "Última requisição concluída com sucesso.",
+            ResultadoRequisicao.Erro => "A última requisição terminou com erro.",
+            _ => "Nenhuma requisição concluída nesta sessão."
+        };
     }
 
     private void ExibirErro(string mensagem)
     {
-        AtualizarStatus(mensagem, erro: true);
+        AtualizarStatus(mensagem, ResultadoRequisicao.Erro);
         MessageBox.Show(this, mensagem, "Simulador DFe", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
+
+    private static string TraduzirErroDocumento(Exception excecao) => excecao switch
+    {
+        XmlException => "O XML informado é inválido ou está incompleto.",
+        JsonReaderException => "O JSON informado é inválido ou está incompleto.",
+        _ => excecao.Message
+    };
 
     private void TelaPrincipal_KeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Control && e.KeyCode == Keys.O)
         {
-            btnAbrirArquivo.PerformClick();
-            ConsumirAtalho(e);
+            if (tabProcessos.SelectedTab == tabRetorno)
+            {
+                btnAbrirArquivo.PerformClick();
+                ConsumirAtalho(e);
+            }
+
             return;
         }
 
         switch (e.KeyCode)
         {
-            case Keys.F2:
+            case Keys.F2 when tabProcessos.SelectedTab == tabRetorno:
                 btnAbrirArquivo.PerformClick();
                 break;
             case Keys.F3:
-                btnConfigurar.PerformClick();
+                menuFerramentasConfigurar.PerformClick();
                 break;
-            case Keys.F4:
-                btnColetarPendentes.PerformClick();
-                break;
-            case Keys.F5:
-                btnGerarPrevia.PerformClick();
-                break;
-            case Keys.F8:
+            case Keys.F8 when tabProcessos.SelectedTab == tabColeta:
                 btnConfirmarAck.PerformClick();
                 break;
             case Keys.F10:
-                btnEnviar.PerformClick();
+                if (tabProcessos.SelectedTab == tabRetorno)
+                    btnEnviar.PerformClick();
+                else if (tabProcessos.SelectedTab == tabColeta)
+                    btnColetarPendentes.PerformClick();
                 break;
             case Keys.F12:
-                btnLimpar.PerformClick();
+                if (tabProcessos.SelectedTab == tabColeta)
+                    btnLimparColeta.PerformClick();
+                else
+                    btnLimpar.PerformClick();
                 break;
             default:
                 return;
@@ -803,5 +1085,10 @@ public partial class TelaPrincipal : Form
     {
         e.Handled = true;
         e.SuppressKeyPress = true;
+    }
+
+    private void lblOrientacaoColeta_Click(object? sender, EventArgs e)
+    {
+
     }
 }

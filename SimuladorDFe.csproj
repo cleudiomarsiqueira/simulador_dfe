@@ -34,6 +34,18 @@
     <Compile Update="FormularioConfiguracao.Designer.cs">
       <DependentUpon>FormularioConfiguracao.cs</DependentUpon>
     </Compile>
+    <Compile Update="FormularioSobre.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormularioSobre.Designer.cs">
+      <DependentUpon>FormularioSobre.cs</DependentUpon>
+    </Compile>
+    <Compile Update="FormularioConfirmarAck.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormularioConfirmarAck.Designer.cs">
+      <DependentUpon>FormularioConfirmarAck.cs</DependentUpon>
+    </Compile>
     <EmbeddedResource Update="TelaPrincipal.resx">
       <DependentUpon>TelaPrincipal.cs</DependentUpon>
     </EmbeddedResource>

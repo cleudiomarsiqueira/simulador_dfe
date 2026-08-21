@@ -1,5 +1,7 @@
 namespace SimuladorDFe.Modelos;
 
+public sealed record ConfiguracaoApi(string UrlBaseApi, string Token);
+
 public sealed record ConfiguracaoDfe(
     string UrlBaseApi,
     TipoDocumento TipoDocumento,
@@ -11,7 +13,7 @@ public sealed record ConfiguracaoDfe(
     public static ConfiguracaoDfe Padrao { get; } = new(
         UrlBaseApi: string.Empty,
         TipoDocumento: TipoDocumento.NFe,
-        FluxoDocumento: FluxoDocumento.Recepcao,
+        FluxoDocumento: FluxoDocumento.Emissao,
         SequenciaDfe: null,
         PontoImpressao: null,
         Token: string.Empty);

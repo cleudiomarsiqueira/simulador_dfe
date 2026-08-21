@@ -4,15 +4,15 @@ Aplicativo Windows para testar os endpoints de retorno e de coleta da Integraç�
 
 ## Uso
 
-1. Primeiro, preencha a janela `Configurar API` com a URL base da publicação, como `https://servidor/IntegracaoDFeApi`, e selecione `Salvar`. Enquanto a URL não for validada, as demais funções ficam bloqueadas. A configuração pode ser reaberta pelo botão `Configurar API`.
+1. Primeiro, preencha a janela `Ferramentas > Configurar API` com a URL base da publicação, como `https://servidor/IntegracaoDFeApi`, e selecione `Salvar`. Enquanto a URL não for validada, as demais funções ficam bloqueadas.
 2. O token Bearer é opcional e não é gravado em arquivo. A API liberada para teste sem token aceita somente o callback de retorno MDF-e; coleta e ACK continuam exigindo autenticação.
-3. Escolha o fluxo: `Emissão` para retornar o processamento de documento originado no ERP — incluindo a gravação em `DFE_RETORNO` — ou `Recepção` para receber documento de terceiro. MDF-e possui somente emissão.
-4. Abra, arraste ou cole o documento. Para XML, o tipo é identificado automaticamente pela raiz (`nfeProc`, `cteProc`, `cteSimpProc` ou `mdfeProc`) e a rota é recalculada; para JSON válido, o tipo selecionado é NFS-e. Ao carregar, o conteúdo é formatado e a aba `Editar Valores` já fica pronta para uso.
-5. Para XML, utilize a árvore de campos para selecionar uma tag e alterar seu valor ou atributos. Cada edição é aplicada automaticamente ao XML; gere a prévia quando terminar de editar.
-6. Use `Gerar Prévia` para validar o conteúdo e ver o corpo exato do POST de retorno.
-7. Use `Enviar Retorno` e consulte a resposta HTTP.
-8. Para simular a coleta de documentos de emissão, use `Coletar Pendentes`. A resposta da API é exibida e, quando houver uma única sequência, o campo `Sequência DFe` é preenchido automaticamente.
-9. Use `Confirmar ACK` somente depois de conferir a sequência. O ACK é uma ação explícita porque altera o status do documento coletado.
+3. Na aba `Recepção`, escolha o tipo e a origem: `Emitido pelo ERP` para retornar o processamento de documento originado no ERP — incluindo a gravação em `DFE_RETORNO` — ou `Recebido de Terceiro` para receber um documento novo de terceiro. `Emitido pelo ERP` é o padrão. MDF-e possui somente essa origem.
+4. Ainda nessa aba, abra, arraste ou cole o documento. Para XML, o tipo é identificado automaticamente pela raiz (`nfeProc`, `cteProc`, `cteSimpProc` ou `mdfeProc`) e a rota é recalculada; para JSON válido, o tipo selecionado é NFS-e. Ao carregar, o conteúdo é formatado e a aba `Editar Valores` já fica pronta para uso.
+5. Para XML, utilize a árvore de campos para selecionar uma tag e alterar seu valor ou atributos. Cada edição atualiza automaticamente a prévia, o JSON formatado e o corpo do POST.
+6. Use `Simular Recepção` para enviar o conteúdo assim que a prévia automática estiver válida.
+7. Quando um XML tiver alterações, `Salvar XML Alterado` fica disponível para gravar o conteúdo editado em outro arquivo.
+8. Na aba `Emissão`, escolha somente o tipo documental e use `Simular Emissão`. A resposta da API é exibida e, quando houver uma única sequência, ela é sugerida no diálogo de confirmação de recebimento. Essa aba não usa XML nem altera os parâmetros do retorno.
+9. Use `Confirmar Recebimento` somente depois de conferir a sequência: o diálogo permite informar qual documento retornado na coleta receberá a confirmação. O ACK é uma ação explícita porque altera o status apenas do documento escolhido.
 
 As rotas são fixas e calculadas automaticamente a partir da URL base:
 
@@ -38,13 +38,13 @@ Alterações em documentos fiscais assinados invalidam a assinatura digital. Ess
 
 - `F2` ou `Ctrl+O`: abrir documento;
 - `F3`: abrir a configuração da API;
-- `F4`: coletar pendentes de emissão;
-- `F5`: gerar prévia;
-- `F8`: confirmar ACK da sequência DFe;
-- `F10`: enviar POST;
+- `F8`: confirmar recebimento da sequência DFe;
+- `F10`: simular recepção ou emissão, conforme a aba ativa;
 - `F12`: limpar documento e resultados.
 
 O retorno `2xx` confirma o aceite pela API. A sincronização posterior para o ERP pode ocorrer de forma assíncrona pelo worker de retorno. Em ambiente compartilhado, o POST pode alterar o status do documento no ERP; use apenas documento de teste e informe token quando o endpoint o exigir.
+
+Cada chamada HTTP possui limite de cinco segundos. Caso a API não responda nesse prazo, a operação é cancelada e o indicador do rodapé fica vermelho.
 
 ## Publicação
 
