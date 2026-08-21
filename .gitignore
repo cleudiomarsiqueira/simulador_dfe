@@ -2,6 +2,7 @@ bin/
 obj/
 .vs/
 publicacao/
+publish/
 
 # Scripts SQL locais de apoio/teste não fazem parte do simulador.
 *.sql

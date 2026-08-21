@@ -1,0 +1,88 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-and-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore SimuladorDFe.sln
+
+    - name: Build
+      run: dotnet build SimuladorDFe.sln -c Release --no-restore
+
+    - name: Publish Windows x64
+      run: dotnet publish SimuladorDFe.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+
+    - name: Get version
+      id: get_version
+      shell: pwsh
+      run: |
+        if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
+          $version = $matches[1]
+        } else {
+          $version = "dev-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        }
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        echo "Version: $version"
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name != 'main' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
+        name: Release ${{ steps.get_version.outputs.VERSION }}
+        draft: false
+        prerelease: false
+        files: |
+          publish/win-x64/SimuladorDFe.exe
+        body: |
+          ## Simulador DFe - Release ${{ steps.get_version.outputs.VERSION }}
+
+          ### Executável Windows x64 Self-Contained
+
+          Build automático gerado em: ${{ github.event.head_commit.timestamp }}
+          Commit: ${{ github.sha }}
+
+          ### Como usar:
+          1. Baixe o arquivo `SimuladorDFe.exe`
+          2. Execute diretamente - não requer instalação do .NET
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Remove old releases
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_TAG: ${{ github.ref_name != 'main' && github.ref_name || format('v{0}', steps.get_version.outputs.VERSION) }}
+      run: |
+        $releases = gh release list --limit 1000 --json databaseId,tagName | ConvertFrom-Json
+        $releasesToDelete = $releases | Where-Object { $_.tagName -ne $env:RELEASE_TAG }
+
+        foreach ($release in $releasesToDelete) {
+          Write-Host "Removing release $($release.tagName)."
+          gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/releases/$($release.databaseId)"
+        }
